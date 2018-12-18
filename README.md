@@ -1,3 +1,2 @@
 # Calendar
-
-it is just a test
+This project is to complish the java course project
