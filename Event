@@ -1,0 +1,24 @@
+package Event;
+
+import java.io.Serializable;
+
+public class Event implements Serializable {
+    private int hour, minute;
+    public boolean sent;
+    public boolean modified;
+    public Event(int h, int m){
+        hour=h;
+        minute=m;
+        sent=false;
+        modified=false;
+    }
+    public boolean before(Event e){
+        return hour<e.hour||(hour==e.hour&&minute<e.minute);
+    }
+    public String toString(){return hour+":"+minute;}
+    public final int getHour(){return hour;}
+    public final int getMinute(){return  minute;}
+    public boolean equal(Event e){
+        return hour==e.hour&&minute==e.minute;
+    }
+}
