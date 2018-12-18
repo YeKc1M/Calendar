@@ -1,0 +1,59 @@
+package SelectMonthUI;
+
+import Calendar.Calendar;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import Date.*;
+
+public class SelectMonthUI extends JFrame {
+    Calendar calendar;
+    private JTextField yearField=new JTextField();
+    private JTextField monthField=new JTextField();
+    public SelectMonthUI(Calendar c){
+        calendar=c;
+        this.setLayout(new GridLayout(4, 1));
+        this.add(new JPanel(){{
+            this.add(new JLabel(calendar.Set().Year()+"-"+calendar.Set().Month()));
+        }});
+        this.add(new JPanel(){
+            {
+                this.setLayout(new GridLayout(1, 2));
+                this.add(new JLabel("year:"));
+                this.add(yearField);
+            }
+        });
+        this.add(new JPanel(){
+            {
+                {
+                    this.setLayout(new GridLayout(1, 2));
+                    this.add(new JLabel("month:"));
+                    this.add(monthField);
+                }
+            }
+        });
+        this.add(new JPanel(){{this.add(new JButton("ȷ��"){
+            {
+                this.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        int year=Integer.parseInt(yearField.getText());
+                        int month=Integer.parseInt(monthField.getText());
+                        calendar.setSet(new Date(year, month, 1));
+                        calendar.refreshCalendar();
+                    }
+                });
+            }
+        });}});
+    }
+    public static void run(JFrame jf, int width, int height){
+        jf.setSize(width, height);
+        jf.setVisible(true);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    }
+    public static void main(String []args){
+        run(new SelectMonthUI(new Calendar()), 350, 250);
+    }
+}
