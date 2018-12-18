@@ -1,0 +1,154 @@
+package Calendar;
+
+import Date.*;
+import ManageEventUI.ManageEventUI;
+import SelectMonthUI.SelectMonthUI;
+import Event.Event;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.*;
+
+public class Calendar extends JFrame{
+    private Date now=new Date();
+    private Date set=new Date();
+    private MonthSelectBtn monthSelectBtn=new MonthSelectBtn();
+    private MonthPanel monthPanel=new MonthPanel();
+    public Calendar(){
+        this.setLayout(new BorderLayout());
+        this.add(new JPanel(){
+            {
+                this.add(monthSelectBtn);
+            }
+        }, BorderLayout.NORTH);
+        this.add(monthPanel, BorderLayout.CENTER);
+    }
+    class MonthSelectBtn extends JButton{
+        public MonthSelectBtn(){
+            refreshMonthSlectBtn();
+            this.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    SelectMonthUI.run(new SelectMonthUI(Calendar.this), 350, 300);
+                }
+            });
+        }
+        public void refreshMonthSlectBtn(){
+            this.setText(set.Year()+"-"+set.Month());
+        }
+    }
+    class MonthPanel extends JPanel{
+        private DatesPanel datesPanel=new DatesPanel();
+        public MonthPanel(){
+            this.setLayout(new BorderLayout());
+            this.add(new JPanel(){
+                {
+                    this.setLayout(new GridLayout(1, 7));
+                    this.add(new JLabel("������"){{ this.setHorizontalAlignment(JLabel.CENTER); }});//Sunday to Saturday
+                    this.add(new JLabel("����һ"){{ this.setHorizontalAlignment(JLabel.CENTER); }});
+                    this.add(new JLabel("���ڶ�"){{ this.setHorizontalAlignment(JLabel.CENTER); }});
+                    this.add(new JLabel("������"){{this.setHorizontalAlignment(JLabel.CENTER);}});
+                    this.add(new JLabel("������"){{this.setHorizontalAlignment(JLabel.CENTER);}});
+                    this.add(new JLabel("������"){{this.setHorizontalAlignment(JLabel.CENTER);}});
+                    this.add(new JLabel("������"){{this.setHorizontalAlignment(JLabel.CENTER);}});
+                }
+            }, BorderLayout.NORTH);
+            this.add(datesPanel);
+        }
+        class DatesPanel extends JPanel{
+            Color normalColor=new JButton().getBackground();
+            private DateButton dateButtons[]=new DateButton[42];
+            public DatesPanel(){
+                this.setLayout(new GridLayout(6,7 ));
+                for(int i=0;i<dateButtons.length;i++){
+                    dateButtons[i]=new DateButton();
+                    this.add(dateButtons[i]);
+                }
+                refreshButtons();
+            }
+            public void refreshButtons(){
+                int temp=(set.WeekInMonth()-1)*7+set.DayInWeek()-1;
+                if(temp==set.Date()-1) temp+=7;
+                dateButtons[temp].setDate(set);
+                for(int i=temp-1;i>=0;i--){
+                    dateButtons[i].setDate(dateButtons[i+1].date.beforeDate());
+                }
+                for(int i=temp+1;i<dateButtons.length;i++){
+                    dateButtons[i].setDate(dateButtons[i-1].date.nextDate());
+                }
+                for(int i=0;i<dateButtons.length;i++){
+                    dateButtons[i].setBackground(normalColor);
+                    if(!dateButtons[i].isSameMonth()) dateButtons[i].setBackground(Color.GRAY);
+                    if(dateButtons[i].date.equal(now)) dateButtons[i].setBackground(Color.RED);
+                    dateButtons[i].dateLabel.setText(dateButtons[i].date.Date()+"");
+                }
+                for(int i=0;i<dateButtons.length;i++){
+                    File file=new File(dateButtons[i].Path());
+                    if(file.exists()){
+                        try(ObjectInputStream in=new ObjectInputStream(new BufferedInputStream(new FileInputStream(file)))){
+                            int counter=0;
+                            while(in.read()!=-1){
+                                if(counter==6)
+                                    break;
+                                dateButtons[i].eventLabels[counter++].setText((Event)in.readObject()+"");
+                            }
+                        }catch (EOFException EOF){
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+            class DateButton extends JButton{
+                private Date date=new Date();
+                private JLabel dateLabel=new JLabel(){{this.setHorizontalAlignment(JLabel.CENTER);}};
+                private JLabel eventLabels[]=new JLabel[6];
+                public DateButton(){
+                    this.setLayout(new GridLayout(7, 1));
+                    this.add(dateLabel);
+                    for(int i=0;i<eventLabels.length;i++){
+                        eventLabels[i]=new JLabel();
+                        eventLabels[i].setHorizontalAlignment(JLabel.CENTER);
+                        this.add(eventLabels[i]);
+                    }
+                    this.addActionListener(new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            if(isSameMonth()){
+                                set.set(date.Year(), date.Month(), date.Date());
+                                SelectMonthUI.run(new ManageEventUI(set), 100, 250);
+                            }else{
+                                set.set(date.Year(), date.Month(), date.Date());
+                                refreshButtons();
+                                monthSelectBtn.refreshMonthSlectBtn();
+                            }
+                        }
+                    });
+                }
+                public boolean isSameMonth(){return date.Year()==set.Year()&&date.Month()==set.Month();}
+                public void setDate(Date d){
+                    date.set(d.Year(), d.Month(), d.Date());
+                }
+                public String Path(){
+                    return "events\\"+date.Year()+"-"+date.Month()+"\\"+date.Date()+".ser";
+                }
+            }
+        }
+    }
+    public void setSet(Date d){ set.set(d.Year(), d.Month(), d.Date());}
+    public void refreshCalendar(){
+        monthPanel.datesPanel.refreshButtons();
+        monthSelectBtn.refreshMonthSlectBtn();
+    }
+    public Date Set(){return set;}
+    public static void run(JFrame jf, int width, int height){
+        jf.setVisible(true);
+        jf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        jf.setSize(width, height);
+    }
+    public static void main(String[] args){
+        run(new Calendar(), 600, 600);
+    }
+}
