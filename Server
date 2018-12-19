@@ -1,0 +1,97 @@
+package server;
+
+import event.Event;
+
+import java.io.*;
+import java.net.BindException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+
+public class Server {
+    final int serverPort=10086;
+    ServerSocket serverSocket;
+    public Server(){
+        try{
+            serverSocket=new ServerSocket(serverPort);
+        }catch(IOException e){
+            e.printStackTrace();
+        }
+    }
+    private void listen(){
+        while(true){
+            try{
+                Socket socket=serverSocket.accept();
+                new ClientHandler(socket).start();
+            }catch(BindException BE) {
+                BE.printStackTrace();
+                break;
+            }catch(IOException IOEE) {
+                IOEE.printStackTrace();
+            }
+        }
+    }
+    public static void main(String[] args){
+        new Server().listen();
+    }
+}
+
+class ClientHandler extends Thread {
+    Socket socket;
+    PrintWriter out;
+    public ClientHandler(Socket s){
+        socket=s;
+        try{
+            out=new PrintWriter(socket.getOutputStream());
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+    }
+    public void run(){
+        InputStream in=null;
+        try{
+            in=socket.getInputStream();
+            BufferedReader bf=new BufferedReader(new InputStreamReader(in));
+            String line;
+            while((line=bf.readLine())!=null){
+                System.out.println(line);
+                String[] s=line.split(" ");
+                String[] dateInfo=s[0].split("-");
+                String[] eventInfo=s[1].split(":");
+                int year=Integer.parseInt(dateInfo[0]);
+                int month=Integer.parseInt(dateInfo[1]);
+                int date=Integer.parseInt(dateInfo[2]);
+                int hour=Integer.parseInt(eventInfo[0]);
+                int minute=Integer.parseInt(eventInfo[1]);
+                boolean mod=Boolean.getBoolean(s[2]);
+                boolean del=Boolean.getBoolean(s[3]);
+                if(mod){
+                    System.out.println("mod operation");
+                    mod=false;
+                }
+                if(del){
+                    System.out.println("del operation");
+                    del=false;
+                }
+                Date.Date d=new Date.Date(year, month, date);
+                Event e=new Event(hour, minute);
+                e.modified=mod;
+                e.delete=del;
+                out.println(d+" "+e.send());
+                out.flush();
+            }
+        }catch(SocketException e){
+            ;
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            try{
+                if(in!=null){
+                    in.close();
+                }
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+    }
+}
