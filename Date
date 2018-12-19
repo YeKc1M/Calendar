@@ -28,7 +28,7 @@ public class Date {
         this.dayInWeek=set.get(Calendar.DAY_OF_WEEK);
     }
     public String toString(){
-        return year+"-"+month+"-"+date+" "+weekInMonth+" "+dayInWeek;
+        return year+"-"+month+"-"+date;
     }
     private boolean isLeapYear(){
         if(year%100==0){
