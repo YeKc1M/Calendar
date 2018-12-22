@@ -1,12 +1,12 @@
 package server;
 
-import event.Event;
-
 import java.io.*;
 import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+
+import event.Event;
 
 public class Server {
     final int serverPort=10086;
@@ -63,20 +63,18 @@ class ClientHandler extends Thread {
                 int date=Integer.parseInt(dateInfo[2]);
                 int hour=Integer.parseInt(eventInfo[0]);
                 int minute=Integer.parseInt(eventInfo[1]);
-                boolean mod=Boolean.getBoolean(s[2]);
-                boolean del=Boolean.getBoolean(s[3]);
-                if(mod){
-                    System.out.println("mod operation");
-                    mod=false;
+                int status=Integer.parseInt(s[2]);
+                if(status==Event.ADD){
+                    System.out.println("add operation");
+                    status=Event.ADDED;
                 }
-                if(del){
+                if(status==Event.DELETE){
                     System.out.println("del operation");
-                    del=false;
+                    status=Event.DELETED;
                 }
                 Date.Date d=new Date.Date(year, month, date);
                 Event e=new Event(hour, minute);
-                e.modified=mod;
-                e.delete=del;
+                e.status=status;
                 out.println(d+" "+e.send());
                 out.flush();
             }

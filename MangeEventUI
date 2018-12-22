@@ -52,7 +52,7 @@ public class ManageEventUI extends JFrame{
         try(ObjectInputStream in=new ObjectInputStream(new BufferedInputStream(new FileInputStream(Path())))){
             while(in.read()!=-1){
                 Event event=(Event)in.readObject();
-                if(!event.delete)
+                if(event.status!=Event.DELETE)
                     eventCounter++;
             }
             in.close();
@@ -78,9 +78,10 @@ public class ManageEventUI extends JFrame{
                 int counter=0;
                 while(in.read()!=-1){
                     Event event=(Event)in.readObject();
-                    if(!event.delete)
+                    if(event.status!=Event.DELETE){
                         eventButtons[counter]=new EventButton(event);
-                    panel.add(eventButtons[counter++]);
+                        panel.add(eventButtons[counter++]);
+                    }
                 }
                 in.close();
             }catch (Exception E){E.printStackTrace();}
@@ -112,6 +113,7 @@ public class ManageEventUI extends JFrame{
                                 InputStream in;
                                 out.println(date + " " + temp.send());
                                 out.flush();
+
                                 TimeUnit.MILLISECONDS.sleep(1000);
                                 in = ManageEventSocket.getInputStream();
                                 BufferedReader bf = new BufferedReader(new InputStreamReader(in));
@@ -119,13 +121,10 @@ public class ManageEventUI extends JFrame{
                                 if ((line = bf.readLine()) != null) {
                                     System.out.println(line);
                                     String[] s = line.split(" ");
-                                    boolean mod = Boolean.getBoolean(s[2]);
-                                    boolean del = Boolean.getBoolean(s[3]);
-                                    temp.modified = mod;
-                                    temp.delete = del;
+                                    int status = Integer.parseInt(s[2]);
+                                    temp.status=status;
                                 }
                             }catch (SocketException e2){
-                                ;
                             }catch (Exception e1){
                                 e1.printStackTrace();
                             }
@@ -136,6 +135,7 @@ public class ManageEventUI extends JFrame{
                                 ManageEventUI.this.panel.remove(eventButtons[i]);
                             }
                             holder[eventCounter-1]=new EventButton(temp);
+                            holder[eventCounter-1].event.status=temp.status;
                             eventButtons=holder;
                             for(int i=eventCounter-1;i>0;i--){
                                 if(eventButtons[i].event.before(eventButtons[i-1].event)){
@@ -179,13 +179,14 @@ public class ManageEventUI extends JFrame{
         Event event;
         public EventButton(Event e){
             event=new Event(e.getHour(), e.getMinute());
+            event.status=e.status;
             this.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     int result=JOptionPane.showConfirmDialog(ManageEventUI.this, "delete event?", "hint",
                             JOptionPane.YES_NO_OPTION);
                     if(result==0){
-                        event.delete=true;
+                        event.status=Event.DELETE;
                         try{
                             out.println(date+" "+event.send());
                             out.flush();
@@ -197,10 +198,8 @@ public class ManageEventUI extends JFrame{
                             if((line=bf.readLine())!=null) {
                                 System.out.println(line);
                                 String[] s = line.split(" ");
-                                boolean mod = Boolean.getBoolean(s[2]);
-                                boolean del = Boolean.getBoolean(s[3]);
-                                event.modified = mod;
-                                event.delete = del;
+                                int status = Integer.parseInt(s[2]);
+                                event.status=status;
                             }
                         }catch(SocketException e1){
                             e1.printStackTrace();
@@ -216,7 +215,7 @@ public class ManageEventUI extends JFrame{
                             holder[counter++]=eventButtons[i];
                         }
                     }
-                    if(event.delete){
+                    if(event.status==Event.DELETE){
                         try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
                             for(int i=0;i<eventButtons.length;i++){
                                 out.writeByte(0);
@@ -224,7 +223,7 @@ public class ManageEventUI extends JFrame{
                                 out.flush();
                             }
                         }catch (Exception e1){e1.printStackTrace();}
-                    }else{
+                    }else if(event.status==Event.DELETED){
                         try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
                             for(int i=0;i<holder.length;i++){
                                 out.writeByte(0);
@@ -240,20 +239,6 @@ public class ManageEventUI extends JFrame{
                     }
                     ManageEventUI.this.panel.repaint();
                     ManageEventUI.this.panel.revalidate();
-                    /*
-                    eventCounter--;
-                    eventButtons=holder;
-                    try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
-                        for(int i=0;i<eventButtons.length;i++){
-                            ManageEventUI.this.panel.add(eventButtons[i]);
-                            out.writeByte(0);
-                            out.writeObject(eventButtons[i].event);
-                        }
-                        out.flush();
-                        out.close();
-                    }catch (Exception e1){e1.printStackTrace();}
-                    ManageEventUI.this.panel.repaint();
-                    ManageEventUI.this.panel.revalidate();*/
                 }
                 calendar.refreshCalendar();
                 }
@@ -263,7 +248,7 @@ public class ManageEventUI extends JFrame{
         public void refreshEventButton(){
             this.setText(event+"");
         }
-        public void setEvent(Event e){event=new Event(e.getHour(), e.getMinute());}
+        public void setEvent(Event e){event=new Event(e.getHour(), e.getMinute());event.status=e.status;}
     }
     public static void main(String[] args){
 

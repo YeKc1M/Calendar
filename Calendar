@@ -11,17 +11,19 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 
 public class Calendar extends JFrame{
-    private Socket calendarSocket=null;
     private String serverAddr="localhost";
     final int serverPort=10086;
+    private Socket calendarSocket;
     private PrintWriter out;
     private Date now=new Date();
     private Date set=new Date();
     private MonthSelectBtn monthSelectBtn=new MonthSelectBtn();
-    private MonthPanel monthPanel=new MonthPanel();
+    private MonthPanel monthPanel;
     public Calendar(){
         try{
             calendarSocket=new Socket(serverAddr, serverPort);
@@ -38,6 +40,7 @@ public class Calendar extends JFrame{
                 this.add(monthSelectBtn);
             }
         }, BorderLayout.NORTH);
+        monthPanel=new MonthPanel();
         this.add(monthPanel, BorderLayout.CENTER);
     }
     class MonthSelectBtn extends JButton{
@@ -82,6 +85,67 @@ public class Calendar extends JFrame{
                     this.add(dateButtons[i]);
                 }
                 refreshButtons();
+                try{
+                    InputStream in=calendarSocket.getInputStream();
+                    BufferedReader bf=new BufferedReader(new InputStreamReader(in));
+                    Event events[];
+                    int eventCounter=0;
+                    for(int i=0;i<dateButtons.length;i++){
+                        File file=new File(dateButtons[i].Path());
+                        if(file.exists()){
+                            try(ObjectInputStream inputStream=new ObjectInputStream(new BufferedInputStream(new FileInputStream(file)))){
+                                while (inputStream.read()!=-1){
+                                    eventCounter++;
+                                    inputStream.readObject();
+                                }
+                            }catch (EOFException e){
+                                continue;
+                            }catch (Exception e){
+                                e.printStackTrace();
+                            }
+                            events=new Event[eventCounter];
+                            ObjectInputStream inputStream2=new ObjectInputStream(new BufferedInputStream(new FileInputStream(dateButtons[i].Path())));
+                            for(int j=0;j<events.length;j++){
+                                inputStream2.read();
+                                Event event=(Event)inputStream2.readObject();
+                                if(event.status==Event.ADD||event.status==Event.DELETE){
+                                    out.println(dateButtons[i].date+" "+event.send());
+                                    out.flush();
+                                }
+                                events[j]=event;
+                            }/*
+                            String line;
+                            while ((line=bf.readLine())!=null){
+                                System.out.println(line);
+                                String s[]=line.split(" ");
+                                String eventInfo[]=s[1].split(":");
+                                Event event=new Event(Integer.parseInt(eventInfo[0]), Integer.parseInt(eventInfo[1]));
+                                for(int j=0;j<events.length;j++){
+                                    if(events[j].equal(event)){
+                                        events[j].status=Integer.parseInt(s[2]);
+                                        if(events[j].status==Event.DELETED){
+                                            events[j]=null;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }*//*
+                            ObjectOutputStream outputStream=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(dateButtons[i].Path())));
+                            for(int j=0;j<events.length;j++){
+                                if(events[j]!=null){
+                                    outputStream.writeByte(0);
+                                    outputStream.writeObject(events[j]);
+                                }
+                            }*/
+                        }
+                    }
+                }catch(SocketException e) {
+                    e.printStackTrace();
+                }catch (EOFException e) {
+                    e.printStackTrace();
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
             }
             public void refreshButtons(){
                 int temp=(set.WeekInMonth()-1)*7+set.DayInWeek()-1;
@@ -105,19 +169,22 @@ public class Calendar extends JFrame{
                     }
                     File file=new File(dateButtons[i].Path());
                     if(file.exists()){
+                        int eventCounter=0;
                         try(ObjectInputStream in=new ObjectInputStream(new BufferedInputStream(new FileInputStream(file)))){
                             int counter=0;
                             while(in.read()!=-1){
-                                if(counter==5)
-                                    break;
+                                if(counter>=5){
+                                    eventCounter++;
+                                    in.readObject();
+                                    continue;
+                                }
                                 Event event=(Event)in.readObject();
-                                if(event.delete){
-                                    out.println(dateButtons[i].date+" "+event.send());
-                                    out.flush();
-                                    //to be continued
+                                if(event.status==Event.DELETE||event.status==Event.DELETED){
+                                    eventCounter++;
                                     continue;
                                 }
                                 dateButtons[i].eventLabels[counter++].setText(event+"");
+                                eventCounter++;
                                 dateButtons[i].repaint();
                                 dateButtons[i].revalidate();
                             }
