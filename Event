@@ -4,20 +4,22 @@ import java.io.Serializable;
 
 public class Event implements Serializable {
     private int hour, minute;
-    public  boolean delete;
-    public boolean modified;
+    public int status;
+    public static final int ADD=1;
+    public static final int ADDED=2;
+    public static final int DELETE=3;
+    public static final int DELETED=4;
     public Event(int h, int m){
         hour=h;
         minute=m;
-        modified=true;
-        delete=false;
+        status=ADD;
     }
     public boolean before(Event e){
         return hour<e.hour||(hour==e.hour&&minute<e.minute);
     }
     public String toString(){return hour+":"+minute;}
     public String send(){
-        return hour+":"+minute+" "+modified+" "+delete;
+        return hour+":"+minute+" "+status;
     }
     public final int getHour(){return hour;}
     public final int getMinute(){return  minute;}
