@@ -10,13 +10,15 @@ import Date.*;
 
 public class SelectMonthUI extends JFrame {
     Calendar calendar;
+    JLabel label=new JLabel();
     private JTextField yearField=new JTextField();
     private JTextField monthField=new JTextField();
     public SelectMonthUI(Calendar c){
         calendar=c;
+        label.setText(calendar.Set().Year()+"-"+calendar.Set().Month());
         this.setLayout(new GridLayout(4, 1));
         this.add(new JPanel(){{
-            this.add(new JLabel(calendar.Set().Year()+"-"+calendar.Set().Month()));
+            this.add(label);
         }});
         this.add(new JPanel(){
             {
@@ -43,6 +45,7 @@ public class SelectMonthUI extends JFrame {
                         int month=Integer.parseInt(monthField.getText());
                         calendar.setSet(new Date(year, month, 1));
                         calendar.refreshCalendar();
+                        label.setText(calendar.Set().Year()+"-"+calendar.Set().Month());
                     }
                 });
             }
