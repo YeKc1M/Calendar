@@ -5,6 +5,12 @@ import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.Calendar;
+import java.util.concurrent.TimeUnit;
 
 import event.Event;
 
@@ -23,6 +29,7 @@ public class Server {
             try{
                 Socket socket=serverSocket.accept();
                 new ClientHandler(socket).start();
+                new RingThread(socket).start();
             }catch(BindException BE) {
                 BE.printStackTrace();
                 break;
@@ -31,14 +38,47 @@ public class Server {
             }
         }
     }
+    public static void TestConnection(){
+        Connection connection=null;
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
+            connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/sys?useUnicode=true&characterEncoding=UTF-8" +
+                    "&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC", "root", "password");
+            if(!connection.isClosed()){
+                System.out.println("successfully connected");
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            try{
+                if(connection!=null){
+                    connection.close();
+                    System.out.println("successfully closed");
+                }
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+    }
+    public static void testCalendar(){
+        Calendar calendar=Calendar.getInstance();
+        System.out.println(calendar.get(Calendar.YEAR));
+        System.out.println(calendar.get(Calendar.MONTH));
+        System.out.println(calendar.get(Calendar.DATE));
+        System.out.println(calendar.get(Calendar.HOUR_OF_DAY));
+        System.out.println(calendar.get(Calendar.MINUTE));
+    }
     public static void main(String[] args){
         new Server().listen();
+        //TestConnection();
+        //testCalendar();
     }
 }
 
 class ClientHandler extends Thread {
     Socket socket;
     PrintWriter out;
+    Connection connection=null;
     public ClientHandler(Socket s){
         socket=s;
         try{
@@ -50,6 +90,11 @@ class ClientHandler extends Thread {
     public void run(){
         InputStream in=null;
         try{
+            Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
+            connection= DriverManager.getConnection("jdbc:mysql://localhost:3306/?useUnicode=true&characterEncoding=UTF-8" +
+                    "&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC", "root", "password");
+            Statement statement=connection.createStatement();
+
             in=socket.getInputStream();
             BufferedReader bf=new BufferedReader(new InputStreamReader(in));
             String line;
@@ -64,15 +109,41 @@ class ClientHandler extends Thread {
                 int hour=Integer.parseInt(eventInfo[0]);
                 int minute=Integer.parseInt(eventInfo[1]);
                 int status=Integer.parseInt(s[2]);
+                int counter=0;
+                statement.execute("SELECT * FROM month.date WHERE year="+year+" AND month="+month);
+                ResultSet set=statement.getResultSet();
+                if(set.next())
+                    counter++;
+                if(counter==0) {
+                    statement.execute("CREATE DATABASE `" + year + "-" + month + "`");
+                }
+                counter=0;
+                statement.execute("SELECT * FROM month.date WHERE year=" + year+" AND month=" + month + " AND date="+date);
+                ResultSet set1=statement.getResultSet();
+                if(set1.next())
+                    counter++;
+                if(counter==0){
+                    statement.execute("CREATE TABLE `" + year + "-" + month + "`.`" + date + "` " +
+                            "( `hour` INT UNSIGNED NOT NULL, `minute` INT UNSIGNED NOT NULL)");
+                    statement.execute("INSERT INTO month.date VALUES (" + year + ", " + month + ", "+date + ")");
+                }
                 if(status==Event.ADD){
                     System.out.println("add operation");
+                    statement.execute("SELECT * FROM `" + year + "-" + month + "`.`" + date + "` WHERE hour=" + hour + " AND minute=" + minute);
+                    ResultSet set2=statement.getResultSet();
+                    if(set2.next()){
+                        System.out.println("added");
+                        continue;
+                    }
+                    statement.execute("INSERT INTO `" + year + "-" + month + "`.`" + date + "` VALUES (" + hour + ", " + minute + ")");
                     status=Event.ADDED;
                 }
                 if(status==Event.DELETE){
                     System.out.println("del operation");
+                    statement.execute("DELETE FROM `" + year + "-" + month + "`.`" + date + "` WHERE hour=" + hour + " AND minute=" + minute);
                     status=Event.DELETED;
                 }
-                Date.Date d=new Date.Date(year, month, date);
+                date.Date d=new date.Date(year, month, date);
                 Event e=new Event(hour, minute);
                 e.status=status;
                 out.println(d+" "+e.send());
@@ -87,6 +158,56 @@ class ClientHandler extends Thread {
                 if(in!=null){
                     in.close();
                 }
+                if(connection!=null)
+                    connection.close();
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+class RingThread extends Thread{
+    Socket socket;
+    Connection connection;
+    PrintWriter out;
+    public RingThread(Socket s){
+        socket=s;
+        try{
+            out=new PrintWriter(socket.getOutputStream());
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+    }
+    public void run(){
+        try{
+            Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
+            connection= DriverManager.getConnection("jdbc:mysql://localhost:3306/?useUnicode=true&characterEncoding=UTF-8" +
+                    "&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC", "root", "password");
+            Statement statement=connection.createStatement();
+
+            while(true){
+                Calendar calendar=Calendar.getInstance();
+                int year=calendar.get(Calendar.YEAR), month=calendar.get(Calendar.MONTH) + 1, date=calendar.get(Calendar.DATE),
+                        hour=calendar.get(Calendar.HOUR_OF_DAY), minute=calendar.get(Calendar.MINUTE);
+                statement.execute("SELECT * FROM month.date WHERE year=" + year+" AND month=" + month + " AND date="+date);
+                ResultSet set=statement.getResultSet();
+                if(set.next()){
+                    statement.execute("SELECT * FROM `" + year + "-" + month + "`.`" + date + "` WHERE hour=" + hour + " AND minute=" + minute);
+                    ResultSet set1=statement.getResultSet();
+                    if(set1.next()){
+                        out.println("ring");
+                        out.flush();
+                        TimeUnit.SECONDS.sleep(60);
+                    }
+                }
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            try{
+                if(connection!=null)
+                    connection.close();
             }catch (Exception e){
                 e.printStackTrace();
             }
