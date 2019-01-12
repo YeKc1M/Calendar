@@ -15,9 +15,9 @@ import java.net.*;
 import java.util.concurrent.TimeUnit;
 
 public class ManageEventUI extends JFrame{
-    Socket ManageEventSocket;//client
-    String host="localhost";
-    final int serverPort=10086;
+    Socket ManageEventSocket;
+    //String host="localhost";
+    //final int serverPort=10086;
     PrintWriter out;
     Calendar calendar;
     int eventCounter=0;
@@ -32,9 +32,10 @@ public class ManageEventUI extends JFrame{
     public ManageEventUI(Date d, Calendar c){
         calendar=c;
         try{
-            ManageEventSocket=new Socket(host, serverPort);
+            ManageEventSocket=calendar.CalendarSocket();
             System.out.println(ManageEventSocket);
             out=new PrintWriter(ManageEventSocket.getOutputStream());
+        }catch (NullPointerException NPE){
         }catch(UnknownHostException UHE){
             UHE.printStackTrace();
         }catch (IOException IOE){
@@ -83,7 +84,7 @@ public class ManageEventUI extends JFrame{
                         panel.add(eventButtons[counter++]);
                     }
                 }
-                in.close();
+                //in.close();
             }catch (Exception E){E.printStackTrace();}
         }
     }
@@ -110,64 +111,60 @@ public class ManageEventUI extends JFrame{
                         public void actionPerformed(ActionEvent e) {
                             Event temp = new Event(Integer.parseInt(hourField.getText()), Integer.parseInt(minuteField.getText()));
                             try{
-                                InputStream in;
-                                out.println(date + " " + temp.send());
-                                out.flush();
-
-                                TimeUnit.MILLISECONDS.sleep(1000);
-                                in = ManageEventSocket.getInputStream();
-                                BufferedReader bf = new BufferedReader(new InputStreamReader(in));
-                                String line;
-                                if ((line = bf.readLine()) != null) {
-                                    System.out.println(line);
-                                    String[] s = line.split(" ");
-                                    int status = Integer.parseInt(s[2]);
-                                    temp.status=status;
+                                for(int i=0;i<eventButtons.length;i++)
+                                    if(eventButtons[i].event.equal(temp))
+                                        throw new EventAlreadyExistException();
+                                eventCounter++;
+                                EventButton[] holder=new EventButton[eventCounter];
+                                for(int i=0;i<eventButtons.length;i++){
+                                    holder[i]=new EventButton(eventButtons[i].event);
+                                    ManageEventUI.this.panel.remove(eventButtons[i]);
                                 }
-                            }catch (SocketException e2){
-                            }catch (Exception e1){
-                                e1.printStackTrace();
-                            }
-                            eventCounter++;
-                            EventButton[] holder=new EventButton[eventCounter];
-                            for(int i=0;i<eventButtons.length;i++){
-                                holder[i]=new EventButton(eventButtons[i].event);
-                                ManageEventUI.this.panel.remove(eventButtons[i]);
-                            }
-                            holder[eventCounter-1]=new EventButton(temp);
-                            holder[eventCounter-1].event.status=temp.status;
-                            eventButtons=holder;
-                            for(int i=eventCounter-1;i>0;i--){
-                                if(eventButtons[i].event.before(eventButtons[i-1].event)){
-                                    Event evnt=eventButtons[i].event;
-                                    eventButtons[i].setEvent(eventButtons[i-1].event);
-                                    eventButtons[i-1].setEvent(evnt);
-                                }else{
-                                    break;
+                                holder[eventCounter-1]=new EventButton(temp);
+                                holder[eventCounter-1].event.status=temp.status;
+                                eventButtons=holder;
+                                for(int i=eventCounter-1;i>0;i--){
+                                    if(eventButtons[i].event.before(eventButtons[i-1].event)){
+                                        Event evnt=eventButtons[i].event;
+                                        eventButtons[i].setEvent(eventButtons[i-1].event);
+                                        eventButtons[i-1].setEvent(evnt);
+                                    }else{
+                                        break;
+                                    }
                                 }
-                            }
-                            try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
-                                for(int i=0;i<eventCounter;i++){
-                                    out.writeByte(0);
-                                    out.writeObject(eventButtons[i].event);
+                                try(ObjectOutputStream outputStream=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
+                                    for(int i=0;i<eventCounter;i++){
+                                        outputStream.writeByte(0);
+                                        outputStream.writeObject(eventButtons[i].event);
+                                        ManageEventUI.this.panel.add(eventButtons[i]);
+                                    }
+                                    outputStream.flush();
+                                    //
+                                }catch (Exception E){
+                                    E.printStackTrace();
                                 }
-                                out.flush();
-                                out.close();
-                            }catch (Exception E){
-                                E.printStackTrace();
-                            }
-                            try(ObjectInputStream in=new ObjectInputStream(new BufferedInputStream(new FileInputStream(Path())))){
-                                for(int i=0;i<eventCounter;i++){
-                                    in.read();
-                                    eventButtons[i].setEvent((Event)in.readObject());
-                                    ManageEventUI.this.panel.add(eventButtons[i]);
+                                try(ObjectInputStream in=new ObjectInputStream(new BufferedInputStream(new FileInputStream(Path())))){
+                                    for(int i=0;i<eventCounter;i++){
+                                        in.read();
+                                        eventButtons[i].setEvent((Event)in.readObject());
+                                        //ManageEventUI.this.panel.add(eventButtons[i]);
+                                    }
+                                }catch(Exception E){
+                                    E.printStackTrace();
                                 }
-                            }catch(Exception E){
-                                E.printStackTrace();
+                                try{
+                                    out.println(date + " " + temp.send());
+                                    out.flush();
+                                }catch (Exception e1){
+                                    e1.printStackTrace();
+                                }
+                                ManageEventUI.this.panel.repaint();
+                                ManageEventUI.this.panel.revalidate();
+                                calendar.refreshCalendar();
+                            }catch (EventAlreadyExistException e1){
+                                JOptionPane.showConfirmDialog(ManageEventUI.this, "the event has already been added",
+                                        "EventAlreadyAdded", JOptionPane.YES_NO_OPTION);
                             }
-                            ManageEventUI.this.panel.repaint();
-                            ManageEventUI.this.panel.revalidate();
-                            calendar.refreshCalendar();
                         }
                     });
                 }});
@@ -190,8 +187,8 @@ public class ManageEventUI extends JFrame{
                         try{
                             out.println(date+" "+event.send());
                             out.flush();
+                            /*
                             InputStream in=null;
-                            TimeUnit.MILLISECONDS.sleep(1000);
                             in=ManageEventSocket.getInputStream();
                             BufferedReader bf=new BufferedReader(new InputStreamReader(in));
                             String line;
@@ -200,46 +197,37 @@ public class ManageEventUI extends JFrame{
                                 String[] s = line.split(" ");
                                 int status = Integer.parseInt(s[2]);
                                 event.status=status;
-                            }
-                        }catch(SocketException e1){
-                            e1.printStackTrace();
+                            }*/
                         }catch (Exception e1){
                             e1.printStackTrace();
                         }
                         EventButton[] holder=new EventButton[eventCounter-1];
                         int counter=0;
-                        for(int i=0;i<eventButtons.length;i++){ ManageEventUI.this.panel.remove(eventButtons[i]);//remove buttons
-                        if(eventButtons[i].event.equal(event)){
-                            continue;
-                        }else{
-                            holder[counter++]=eventButtons[i];
+                        for(int i=0;i<eventButtons.length;i++){
+                            ManageEventUI.this.panel.remove(eventButtons[i]);//remove buttons
+                            if(eventButtons[i].event.equal(event)){
+                                continue;
+                            }else{
+                                holder[counter++]=eventButtons[i];
+                            }
                         }
-                    }
-                    if(event.status==Event.DELETE){
                         try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
                             for(int i=0;i<eventButtons.length;i++){
                                 out.writeByte(0);
                                 out.writeObject(eventButtons[i].event);
                                 out.flush();
                             }
-                        }catch (Exception e1){e1.printStackTrace();}
-                    }else if(event.status==Event.DELETED){
-                        try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(Path())))){
-                            for(int i=0;i<holder.length;i++){
-                                out.writeByte(0);
-                                out.writeObject(holder[i].event);
-                                out.flush();
-                            }
-                        }catch (Exception e1){e1.printStackTrace();}
+                        }catch (Exception e1){
+                            e1.printStackTrace();
+                        }
+                        eventCounter--;
+                        eventButtons=holder;
+                        for(int i=0;i<eventButtons.length;i++){
+                            ManageEventUI.this.panel.add(eventButtons[i]);
+                        }
+                        ManageEventUI.this.panel.repaint();
+                        ManageEventUI.this.panel.revalidate();
                     }
-                    eventCounter--;
-                    eventButtons=holder;
-                    for(int i=0;i<eventButtons.length;i++){
-                        ManageEventUI.this.panel.add(eventButtons[i]);
-                    }
-                    ManageEventUI.this.panel.repaint();
-                    ManageEventUI.this.panel.revalidate();
-                }
                 calendar.refreshCalendar();
                 }
             });
@@ -248,9 +236,12 @@ public class ManageEventUI extends JFrame{
         public void refreshEventButton(){
             this.setText(event+"");
         }
-        public void setEvent(Event e){event=new Event(e.getHour(), e.getMinute());event.status=e.status;}
+        public void setEvent(Event e){event=new Event(e.getHour(), e.getMinute());event.status=e.status; refreshEventButton();}
     }
     public static void main(String[] args){
 
     }
+}
+
+class EventAlreadyExistException extends Exception{
 }
