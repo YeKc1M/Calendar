@@ -27,6 +27,7 @@ public class Date {
         this.weekInMonth=set.get(Calendar.WEEK_OF_MONTH);
         this.dayInWeek=set.get(Calendar.DAY_OF_WEEK);
     }
+    public String Path(){return "events\\" + year + "-" + month + "\\" + date + ".ser";}
     public String toString(){
         return year+"-"+month+"-"+date;
     }
