@@ -4,16 +4,19 @@ import Date.*;
 import ManageEventUI.ManageEventUI;
 import SelectMonthUI.SelectMonthUI;
 import Event.Event;
+import javafx.scene.media.MediaPlayer;
+import javazoom.jl.player.Player;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 import java.io.*;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 public class Calendar extends JFrame{
     private String serverAddr="localhost";
@@ -34,6 +37,7 @@ public class Calendar extends JFrame{
         }catch (IOException IOE){
             IOE.printStackTrace();
         }
+        new ServerThread(calendarSocket).start();
         this.setLayout(new BorderLayout());
         this.add(new JPanel(){
             {
@@ -43,6 +47,7 @@ public class Calendar extends JFrame{
         monthPanel=new MonthPanel();
         this.add(monthPanel, BorderLayout.CENTER);
     }
+    public Socket CalendarSocket(){return calendarSocket;}
     class MonthSelectBtn extends JButton{
         public MonthSelectBtn(){
             refreshMonthSlectBtn();
@@ -86,8 +91,8 @@ public class Calendar extends JFrame{
                 }
                 refreshButtons();
                 try{
-                    InputStream in=calendarSocket.getInputStream();
-                    BufferedReader bf=new BufferedReader(new InputStreamReader(in));
+                    //InputStream in=calendarSocket.getInputStream();
+                    //BufferedReader bf=new BufferedReader(new InputStreamReader(in));
                     Event events[];
                     int eventCounter=0;
                     for(int i=0;i<dateButtons.length;i++){
@@ -104,6 +109,7 @@ public class Calendar extends JFrame{
                                 e.printStackTrace();
                             }
                             events=new Event[eventCounter];
+                            eventCounter=0;
                             ObjectInputStream inputStream2=new ObjectInputStream(new BufferedInputStream(new FileInputStream(dateButtons[i].Path())));
                             for(int j=0;j<events.length;j++){
                                 inputStream2.read();
@@ -111,30 +117,25 @@ public class Calendar extends JFrame{
                                 if(event.status==Event.ADD||event.status==Event.DELETE){
                                     out.println(dateButtons[i].date+" "+event.send());
                                     out.flush();
+                                    /*String line;
+                                    if((line=bf.readLine())!=null){
+                                        System.out.println(line);
+                                        String s[]=line.split(" ");
+                                        //String eventInfo[]=s[1].split(":");
+                                        event.status=Integer.parseInt(s[2]);
+                                    }*/
                                 }
-                                events[j]=event;
+                                /*events[j]=event;
+                                if(events[j].status==Event.DELETED){
+                                    events[j]=null;
+                                }*/
                             }/*
-                            String line;
-                            while ((line=bf.readLine())!=null){
-                                System.out.println(line);
-                                String s[]=line.split(" ");
-                                String eventInfo[]=s[1].split(":");
-                                Event event=new Event(Integer.parseInt(eventInfo[0]), Integer.parseInt(eventInfo[1]));
-                                for(int j=0;j<events.length;j++){
-                                    if(events[j].equal(event)){
-                                        events[j].status=Integer.parseInt(s[2]);
-                                        if(events[j].status==Event.DELETED){
-                                            events[j]=null;
-                                        }
-                                        break;
-                                    }
-                                }
-                            }*//*
                             ObjectOutputStream outputStream=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(dateButtons[i].Path())));
                             for(int j=0;j<events.length;j++){
                                 if(events[j]!=null){
                                     outputStream.writeByte(0);
                                     outputStream.writeObject(events[j]);
+                                    outputStream.flush();
                                 }
                             }*/
                         }
@@ -244,5 +245,110 @@ public class Calendar extends JFrame{
     }
     public static void main(String[] args){
         run(new Calendar(), 600, 600);
+        //new RingFrame();
+    }
+}
+
+class ServerThread extends Thread{
+    private Socket socket;
+    public ServerThread(Socket s){
+        socket=s;
+    }
+    public void run(){
+        InputStream in=null;
+        try{
+            in = socket.getInputStream();
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+        BufferedReader bf = new BufferedReader(new InputStreamReader(in));
+        String line;
+        while(true){
+            try {
+                while ((line = bf.readLine()) != null){
+                    System.out.println(line);
+                    if(line.equals("ring")){
+                        new RingFrame();
+                    }else{
+                        String[] s = line.split(" ");
+                        String[] dateInfo=s[0].split("-");
+                        String[] eventInfo=s[1].split(":");
+                        int status = Integer.parseInt(s[2]);
+                        Date date=new Date(Integer.parseInt(dateInfo[0]), Integer.parseInt(dateInfo[1]), Integer.parseInt(dateInfo[2]));
+                        Event event=new Event(Integer.parseInt(eventInfo[0]), Integer.parseInt(eventInfo[1]));
+                        int counter=0;
+                        try(ObjectInputStream inputStream=new ObjectInputStream(new BufferedInputStream(new FileInputStream(date.Path())))){
+                            while(inputStream.read()!=-1){
+                                counter++;
+                                inputStream.readObject();
+                            }
+                        }catch (EOFException e){
+                            e.printStackTrace();
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                        Event events[]=new Event[counter];
+                        try(ObjectInputStream inputStream=new ObjectInputStream(new BufferedInputStream(new FileInputStream(date.Path())))){
+                            int i=0;
+                            while(inputStream.read()!=-1){
+                                events[i++]=(Event)inputStream.readObject();
+                            }
+                        }catch (EOFException e){
+                            e.printStackTrace();
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                        for(int i=0;i<counter;i++){
+                            if(events[i].equal(event))
+                                events[i].status=status;
+                        }
+                        try(ObjectOutputStream out=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(date.Path())))){
+                            for(int i=0;i<counter;i++){
+                                if(events[i].status==Event.DELETED)
+                                    continue;
+                                out.writeByte(0);
+                                out.writeObject(events[i]);
+                                out.flush();
+                            }
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }catch (Exception e1){
+                e1.printStackTrace();
+            }
+        }
+    }
+}
+
+class RingFrame extends JFrame{
+    private ServerRingThread ringThread=new ServerRingThread();
+    public RingFrame(){
+        this.setVisible(true);
+        this.setSize(200, 150);
+        this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        ringThread.start();
+        this.setLayout(new BorderLayout());
+        this.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                super.mouseClicked(e);
+                ringThread.stop();
+                System.out.println("ring stops");
+            }
+        });
+    }
+}
+
+class ServerRingThread extends Thread{
+    private Player player;
+    public void run(){
+        try{
+            player=new Player(new BufferedInputStream(new FileInputStream("ring.mp3")));
+            player.play();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 }
